@@ -1,0 +1,111 @@
+	import java.io.*;
+	import java.io.PrintStream;
+	import java.io.IOException;
+	import java.net.Socket;
+	import java.net.ServerSocket;
+	
+	public class ChatServer {
+	
+	  private static ServerSocket sSocket = null;
+	  private static Socket cSocket = null;
+	  private static final int maxClients = 10;
+	  private static final clientThread[] threads = new clientThread[maxClients];
+	
+	  public static void main(String args[]) {
+	  int portNumber=0;
+	   if (args.length < 1) {
+      System.out
+          .println("Usage: java ChatServer portNumber\n");
+		  System.exit(0);
+    } else {
+      portNumber = Integer.valueOf(args[0]).intValue();
+    }
+	    try {
+	      sSocket = new ServerSocket(portNumber);
+	    } catch (IOException e) {
+	      System.out.println(e);
+	    }
+	
+	    while (true) {
+	      try {
+	        cSocket = sSocket.accept();
+	        int i = 0;
+	        for (i = 0; i < 10; i++) {
+	          if (threads[i] == null) {
+	            (threads[i] = new clientThread(cSocket, threads)).start();
+	            break;
+	          }
+	        }
+	        if (i == maxClients) {
+	          PrintStream os = new PrintStream(cSocket.getOutputStream());
+	          os.println("limit exceeded.");
+	          os.close();
+	          cSocket.close();
+	        }
+	      } catch (IOException e) {
+	        System.out.println(e);
+	      }
+	    }
+	  }
+	}
+	
+	class clientThread extends Thread {
+	
+	  private BufferedReader inData = null;
+	  private PrintStream outData = null;
+	  private Socket clientSocket = null;
+	  private final clientThread[] threads;
+	  private int maxClients;
+	
+	  public clientThread(Socket clientSocket, clientThread[] threads) {
+	    this.clientSocket = clientSocket;
+	    this.threads = threads;
+	    maxClients = threads.length;
+	  }
+	
+	  public void run() {
+	    int maxClients = this.maxClients;
+	    clientThread[] threads = this.threads;
+	
+	    try {
+	      inData = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+	      outData = new PrintStream(clientSocket.getOutputStream());
+	      outData.println("Please Input your name:");
+	      String name = inData.readLine().trim();
+	      for (int i = 0; i < maxClients; i++) {
+	        if (threads[i] != null && threads[i] != this) {
+	          threads[i].outData.println("New connection from "+ name);
+	        }
+	      }
+	      while (true) {
+	        String line = inData.readLine();
+			System.out.println(line);
+	        if (line.startsWith("quit")) {
+	          break;
+	        }
+	        for (int i = 0; i < maxClients; i++) {
+	          if (threads[i] != null) {
+	            threads[i].outData.println(name + ":" + line);
+	          }
+	        }
+	      }
+	      for (int i = 0; i < maxClients; i++) {
+	        if (threads[i] != null && threads[i] != this) {
+	          threads[i].outData.println("connection closed!");
+	        }
+	      }
+	      outData.println("Bye " + name);
+	      for (int i = 0; i < maxClients; i++) {
+	        if (threads[i] == this) {
+	          threads[i] = null;
+	        }
+	      }
+	      inData.close();
+	      outData.close();
+	      clientSocket.close();
+	    } catch (IOException e) {
+	    }
+	  }
+	}
+	
+	
